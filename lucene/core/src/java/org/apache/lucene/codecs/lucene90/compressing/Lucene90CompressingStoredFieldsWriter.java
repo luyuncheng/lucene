@@ -19,6 +19,7 @@ package org.apache.lucene.codecs.lucene90.compressing;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.lucene.codecs.CodecUtil;
@@ -36,6 +37,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.store.ByteBuffersDataOutput;
+import org.apache.lucene.store.CompositeByteBuf;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -247,21 +249,25 @@ public final class Lucene90CompressingStoredFieldsWriter extends StoredFieldsWri
     writeHeader(docBase, numBufferedDocs, numStoredFields, lengths, sliced, dirtyChunk);
 
     // compress stored fields to fieldsStream.
-    //
-    // TODO: do we need to slice it since we already have the slices in the buffer? Perhaps
-    // we should use max-block-bits restriction on the buffer itself, then we won't have to check it
-    // here.
-    byte[] content = bufferedDocs.toArrayCopy();
-    bufferedDocs.reset();
-
     if (sliced) {
       // big chunk, slice it
-      for (int compressed = 0; compressed < content.length; compressed += chunkSize) {
+      ArrayList<ByteBuffer> bufferList = bufferedDocs.toBufferList();
+      CompositeByteBuf compBuf = new CompositeByteBuf(bufferList.size());
+      for (ByteBuffer bb : bufferList) {
+        compBuf.addComponent(bb);
+      }
+      final int capacity = compBuf.capacity();
+      for (int compressed = 0; compressed < capacity; compressed += chunkSize) {
         compressor.compress(
-            content, compressed, Math.min(chunkSize, content.length - compressed), fieldsStream);
+            compBuf, compressed, Math.min(chunkSize, capacity - compressed), fieldsStream);
       }
     } else {
-      compressor.compress(content, 0, content.length, fieldsStream);
+      ArrayList<ByteBuffer> bufferList = bufferedDocs.toBufferList();
+      CompositeByteBuf compBuf = new CompositeByteBuf(bufferList.size());
+      for (ByteBuffer bb : bufferList) {
+        compBuf.addComponent(bb);
+      }
+      compressor.compress(compBuf, 0, compBuf.capacity(), fieldsStream);
     }
 
     // reset

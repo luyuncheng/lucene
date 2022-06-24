@@ -16,27 +16,50 @@
  */
 package org.apache.lucene.codecs.lucene90.compressing;
 
+import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
+
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Random;
+import java.util.Set;
+import java.util.TreeSet;
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.compressing.CompressionMode;
+import org.apache.lucene.codecs.compressing.Compressor;
+import org.apache.lucene.codecs.lucene90.LZ4WithPresetDictCompressionMode;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteArrayDataOutput;
+import org.apache.lucene.store.ByteBuffersDataOutput;
+import org.apache.lucene.store.CompositeByteBuf;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.codecs.compressing.CompressingCodec;
+import org.apache.lucene.tests.codecs.compressing.LZ4WithPresetCompressingCodec;
 import org.apache.lucene.tests.index.BaseStoredFieldsFormatTestCase;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.util.BytesRef;
 
 public class TestCompressingStoredFieldsFormat extends BaseStoredFieldsFormatTestCase {
 
@@ -324,5 +347,210 @@ public class TestCompressingStoredFieldsFormat extends BaseStoredFieldsFormatTes
     ir.close();
     iw.close();
     dir.close();
+  }
+
+  public void testCompress() throws IOException {
+    Random random = random();
+    final int iterations = atLeast(random, 3);
+    ByteBuffersDataOutput bufferedDocs = new ByteBuffersDataOutput();
+    int chunkSize = 4 * 1024;
+    CompressionMode compressionMode = new LZ4WithPresetDictCompressionMode();
+    Compressor compressor = compressionMode.newCompressor();
+    for (int i = 0; i < iterations; ++i) {
+      final byte[] decompressed = randomArray(random);
+      bufferedDocs.writeBytes(decompressed, decompressed.length);
+    }
+    long elapse1 = 0, elapse2 = 0;
+    for (int i = 0; i < 10; i++) {
+      byte[] outbuf = new byte[(int) bufferedDocs.size() * 2]; // should be enough
+      ByteArrayDataOutput out = new ByteArrayDataOutput(outbuf);
+
+      byte[] outbuf2 = new byte[(int) bufferedDocs.size() * 2]; // should be enough
+      ByteArrayDataOutput out2 = new ByteArrayDataOutput(outbuf2);
+      // new
+      long now2 = System.currentTimeMillis();
+      ArrayList<ByteBuffer> bufferList = bufferedDocs.toBufferList();
+      CompositeByteBuf compBuf = new CompositeByteBuf(bufferList.size());
+      for (ByteBuffer bb : bufferList) {
+        compBuf.addComponent(bb);
+      }
+
+      int cap = compBuf.capacity();
+      for (int compressed = 0; compressed < compBuf.capacity(); compressed += chunkSize) {
+        compressor.compress(compBuf, compressed, Math.min(chunkSize, cap - compressed), out2);
+      }
+      elapse2 += System.currentTimeMillis() - now2;
+      // origin
+      long now1 = System.currentTimeMillis();
+      byte[] content = bufferedDocs.toArrayCopy();
+      for (int compressed = 0; compressed < content.length; compressed += chunkSize) {
+        compressor.compress(
+            content, compressed, Math.min(chunkSize, content.length - compressed), out);
+      }
+      elapse1 += System.currentTimeMillis() - now1;
+
+      assertArrayEquals(outbuf, outbuf2);
+    }
+    if (VERBOSE) {
+      System.out.println("Origin time:" + elapse1 + " New time:" + elapse2);
+    }
+  }
+
+  public void testSortedSetVariableLengthBigStoredFields() throws Exception {
+    int numIterations = atLeast(1);
+    for (int i = 0; i < numIterations; i++) {
+      int numDocs = atLeast(200);
+      doTestSortedSetVsStoredFields(numDocs, 32766, 32766, 100, 100);
+    }
+  }
+
+  protected void doTestSortedSetVsStoredFields(
+      int numDocs, int minLength, int maxLength, int maxValuesPerDoc, int maxUniqueValues)
+      throws Exception {
+    Directory dir = newFSDirectory(createTempDir("dvduel"));
+    IndexWriterConfig conf = newIndexWriterConfig(new MockAnalyzer(random()));
+    RandomIndexWriter writer = new RandomIndexWriter(random(), dir, conf);
+    conf.setCodec(new LZ4WithPresetCompressingCodec(4 * 1024, 4, false, 8));
+    Set<String> valueSet = new HashSet<String>();
+    for (int i = 0; i < 10000 && valueSet.size() < maxUniqueValues; ++i) {
+      final int length = TestUtil.nextInt(random(), minLength, maxLength);
+      valueSet.add(TestUtil.randomSimpleString(random(), length));
+    }
+    String[] uniqueValues = valueSet.toArray(new String[0]);
+
+    // index some docs
+    if (VERBOSE) {
+      System.out.println("\nTEST: now add numDocs=" + numDocs);
+    }
+    for (int i = 0; i < numDocs; i++) {
+      Document doc = new Document();
+      Field idField = new StringField("id", Integer.toString(i), Field.Store.NO);
+      doc.add(idField);
+      int numValues = TestUtil.nextInt(random(), 0, maxValuesPerDoc);
+      // create a random set of strings
+      Set<String> values = new TreeSet<>();
+      for (int v = 0; v < numValues; v++) {
+        values.add(RandomPicks.randomFrom(random(), uniqueValues));
+      }
+
+      // add ordered to the stored field
+      for (String v : values) {
+        doc.add(new StoredField("stored", v));
+      }
+
+      // add in any order to the dv field
+      ArrayList<String> unordered = new ArrayList<>(values);
+      Collections.shuffle(unordered, random());
+      for (String v : unordered) {
+        doc.add(new SortedSetDocValuesField("dv", newBytesRef(v)));
+      }
+
+      writer.addDocument(doc);
+      if (random().nextInt(31) == 0) {
+        writer.commit();
+      }
+    }
+
+    writer.flush();
+
+    // delete some docs
+    int numDeletions = random().nextInt(numDocs / 10);
+    if (VERBOSE) {
+      System.out.println("\nTEST: now delete " + numDeletions + " docs");
+    }
+    for (int i = 0; i < numDeletions; i++) {
+      int id = random().nextInt(numDocs);
+      writer.deleteDocuments(new Term("id", Integer.toString(id)));
+    }
+
+    // compare
+    if (VERBOSE) {
+      System.out.println("\nTEST: now get reader");
+    }
+    DirectoryReader ir = writer.getReader();
+    TestUtil.checkReader(ir);
+    for (LeafReaderContext context : ir.leaves()) {
+      LeafReader r = context.reader();
+      SortedSetDocValues docValues = r.getSortedSetDocValues("dv");
+      for (int i = 0; i < r.maxDoc(); i++) {
+        String[] stringValues = r.document(i).getValues("stored");
+        if (docValues != null) {
+          if (docValues.docID() < i) {
+            docValues.nextDoc();
+          }
+        }
+        if (docValues != null && stringValues.length > 0) {
+          assertEquals(i, docValues.docID());
+          for (int j = 0; j < stringValues.length; j++) {
+            assert docValues != null;
+            long ord = docValues.nextOrd();
+            assert ord != NO_MORE_ORDS;
+            BytesRef scratch = docValues.lookupOrd(ord);
+            assertEquals(stringValues[j], scratch.utf8ToString());
+          }
+          assertEquals(NO_MORE_ORDS, docValues.nextOrd());
+        }
+      }
+    }
+    if (VERBOSE) {
+      System.out.println("\nTEST: now close reader");
+    }
+    ir.close();
+    if (VERBOSE) {
+      System.out.println("TEST: force merge");
+    }
+    writer.forceMerge(1);
+
+    // compare again
+    ir = writer.getReader();
+    TestUtil.checkReader(ir);
+    for (LeafReaderContext context : ir.leaves()) {
+      LeafReader r = context.reader();
+      SortedSetDocValues docValues = r.getSortedSetDocValues("dv");
+      for (int i = 0; i < r.maxDoc(); i++) {
+        String[] stringValues = r.document(i).getValues("stored");
+        if (docValues.docID() < i) {
+          docValues.nextDoc();
+        }
+        if (stringValues.length > 0) {
+          assertEquals(i, docValues.docID());
+          for (int j = 0; j < stringValues.length; j++) {
+            assert docValues != null;
+            long ord = docValues.nextOrd();
+            assert ord != NO_MORE_ORDS;
+            BytesRef scratch = docValues.lookupOrd(ord);
+            assertEquals(stringValues[j], scratch.utf8ToString());
+          }
+          assertEquals(NO_MORE_ORDS, docValues.nextOrd());
+        }
+      }
+    }
+    if (VERBOSE) {
+      System.out.println("TEST: close reader");
+    }
+    ir.close();
+    if (VERBOSE) {
+      System.out.println("TEST: close writer");
+    }
+    writer.close();
+    if (VERBOSE) {
+      System.out.println("TEST: close dir");
+    }
+    dir.close();
+  }
+
+  static byte[] randomArray(Random random) {
+    int bigsize = 10 * 1024 * 1024;
+    final int max = 255;
+    final int length = bigsize;
+    return randomArray(random, length, max);
+  }
+
+  static byte[] randomArray(Random random, int length, int max) {
+    final byte[] arr = new byte[length];
+    for (int i = 0; i < arr.length; ++i) {
+      arr[i] = (byte) RandomNumbers.randomIntBetween(random, 0, max);
+    }
+    return arr;
   }
 }
