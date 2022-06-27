@@ -31,6 +31,7 @@ import java.util.TreeSet;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.compressing.CompressionMode;
 import org.apache.lucene.codecs.compressing.Compressor;
+import org.apache.lucene.codecs.lucene90.DeflateWithPresetDictCompressionMode;
 import org.apache.lucene.codecs.lucene90.LZ4WithPresetDictCompressionMode;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -348,8 +349,53 @@ public class TestCompressingStoredFieldsFormat extends BaseStoredFieldsFormatTes
     iw.close();
     dir.close();
   }
+  public void testCompressDeflate() throws IOException {
+    Random random = random();
+    final int iterations = atLeast(random, 3);
+    ByteBuffersDataOutput bufferedDocs = new ByteBuffersDataOutput();
+    int chunkSize = 4 * 1024;
+    CompressionMode compressionMode = new DeflateWithPresetDictCompressionMode();
+    Compressor compressor = compressionMode.newCompressor();
+    for (int i = 0; i < iterations; ++i) {
+      final byte[] decompressed = randomArray(random);
+      bufferedDocs.writeBytes(decompressed, decompressed.length);
+    }
+    long elapse1 = 0, elapse2 = 0;
+    for (int i = 0; i < 10; i++) {
+      byte[] outbuf = new byte[(int) bufferedDocs.size() * 2]; // should be enough
+      ByteArrayDataOutput out = new ByteArrayDataOutput(outbuf);
 
-  public void testCompress() throws IOException {
+      byte[] outbuf2 = new byte[(int) bufferedDocs.size() * 2]; // should be enough
+      ByteArrayDataOutput out2 = new ByteArrayDataOutput(outbuf2);
+      //new
+
+      long now2 = System.currentTimeMillis();
+      ArrayList<ByteBuffer> bufferList = bufferedDocs.toWriteableBufferListWithLitteEndian();
+      CompositeByteBuf compBuf = new CompositeByteBuf(bufferList.size());
+      for (ByteBuffer bb : bufferList) {
+        compBuf.addComponent(bb);
+      }
+
+      int cap = compBuf.capacity();
+      for (int compressed = 0; compressed < compBuf.capacity() && compressed <=chunkSize; compressed += chunkSize) {
+        compressor.compress(compBuf, compressed, Math.min(chunkSize, cap - compressed), out2);
+      }
+      elapse2 += System.currentTimeMillis() - now2;
+      //origin
+      long now1 = System.currentTimeMillis();
+      byte[] content = bufferedDocs.toArrayCopy();
+      for (int compressed = 0; compressed < content.length && compressed <=chunkSize; compressed += chunkSize) {
+        compressor.compress(content, compressed, Math.min(chunkSize, content.length - compressed), out);
+      }
+      elapse1 += System.currentTimeMillis() - now1;
+
+      assertArrayEquals(outbuf, outbuf2);
+    }
+
+    System.out.println("Origin time:" + elapse1 +  " New time:" + elapse2);
+
+  }
+  public void testCompressPresetDictCompressionMode() throws IOException {
     Random random = random();
     final int iterations = atLeast(random, 3);
     ByteBuffersDataOutput bufferedDocs = new ByteBuffersDataOutput();
@@ -369,7 +415,7 @@ public class TestCompressingStoredFieldsFormat extends BaseStoredFieldsFormatTes
       ByteArrayDataOutput out2 = new ByteArrayDataOutput(outbuf2);
       // new
       long now2 = System.currentTimeMillis();
-      ArrayList<ByteBuffer> bufferList = bufferedDocs.toBufferList();
+      ArrayList<ByteBuffer> bufferList = bufferedDocs.toWriteableBufferListWithLitteEndian();
       CompositeByteBuf compBuf = new CompositeByteBuf(bufferList.size());
       for (ByteBuffer bb : bufferList) {
         compBuf.addComponent(bb);

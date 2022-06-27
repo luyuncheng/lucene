@@ -18,6 +18,7 @@ package org.apache.lucene.store;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
 import java.util.Arrays;
 
 /** Like Netty CompositeByteBuf to reduce ByteBuffer copy */
@@ -102,7 +103,7 @@ public class CompositeByteBuf {
     while (length > 0 && componentId <= componentCount) {
       Component c = components[componentId];
       int localLength = Math.min(length, c.endOffset - offset);
-      c.getBuf().get(dest, destOffset, localLength);
+      c.getBuf().get(c.idx(offset), dest, destOffset, localLength);
       offset += localLength;
       destOffset += localLength;
       length -= localLength;
@@ -110,6 +111,20 @@ public class CompositeByteBuf {
     }
     return this;
   }
+    public ArrayList<Component> rangeOffset(int offset, int length) {
+        int componentId = toComponentIndex(offset);
+        ArrayList<Component> result = new ArrayList<>(1);
+
+        while (length > 0 && componentId <= componentCount) {
+            Component c = components[componentId];
+            result.add(c);
+            int localLength = Math.min(length, c.endOffset - offset);
+            offset += localLength;
+            length -= localLength;
+            componentId++;
+        }
+        return result;
+    }
   /** Return the current number of {@link ByteBuffer}'s that are composed in this instance */
   public int numComponents() {
     return componentCount;
@@ -126,7 +141,7 @@ public class CompositeByteBuf {
     return new Component(buf.order(ByteOrder.LITTLE_ENDIAN), srcIndex, offset, len);
   }
 
-  private static final class Component {
+  public static final class Component {
     final ByteBuffer buf;
 
     int adjustment; // index of the start of this CompositeByteBuf relative to srcBuf
@@ -144,10 +159,22 @@ public class CompositeByteBuf {
       return this.buf;
     }
 
-    int length() {
+    public int length() {
       return endOffset - offset;
     }
 
+    public int getOffset() {
+       return this.offset;
+    }
+    public int getEndOffset() {
+      return this.endOffset;
+    }
+    public int getAdjustment() {
+      return this.adjustment;
+    }
+    public int idx(int index) {
+      return index + adjustment;
+    }
     void reposition(int newOffset) {
       int move = newOffset - offset;
       endOffset += move;
