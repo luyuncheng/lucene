@@ -17,8 +17,6 @@
 package org.apache.lucene.codecs.lucene90;
 
 import java.io.IOException;
-import java.util.ArrayList;
-
 import org.apache.lucene.codecs.compressing.CompressionMode;
 import org.apache.lucene.codecs.compressing.Compressor;
 import org.apache.lucene.codecs.compressing.Decompressor;
@@ -195,7 +193,8 @@ public final class LZ4WithPresetDictCompressionMode extends CompressionMode {
     }
 
     @Override
-    public void compress(CompositeByteBuf compositeByteBuf, int off, int len, DataOutput out) throws IOException {
+    public void compress(CompositeByteBuf compositeByteBuf, int off, int len, DataOutput out)
+        throws IOException {
       final int dictLength = len / (NUM_SUB_BLOCKS * DICT_SIZE_FACTOR);
       final int blockLength = (len - dictLength + NUM_SUB_BLOCKS - 1) / NUM_SUB_BLOCKS;
       buffer = ArrayUtil.growNoCopy(buffer, dictLength + blockLength);

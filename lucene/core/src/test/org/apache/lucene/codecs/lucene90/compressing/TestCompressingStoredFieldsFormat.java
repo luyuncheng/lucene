@@ -349,6 +349,7 @@ public class TestCompressingStoredFieldsFormat extends BaseStoredFieldsFormatTes
     iw.close();
     dir.close();
   }
+
   public void testCompressDeflate() throws IOException {
     Random random = random();
     final int iterations = atLeast(random, 3);
@@ -367,7 +368,7 @@ public class TestCompressingStoredFieldsFormat extends BaseStoredFieldsFormatTes
 
       byte[] outbuf2 = new byte[(int) bufferedDocs.size() * 2]; // should be enough
       ByteArrayDataOutput out2 = new ByteArrayDataOutput(outbuf2);
-      //new
+      // new
 
       long now2 = System.currentTimeMillis();
       ArrayList<ByteBuffer> bufferList = bufferedDocs.toWriteableBufferListWithLitteEndian();
@@ -377,24 +378,30 @@ public class TestCompressingStoredFieldsFormat extends BaseStoredFieldsFormatTes
       }
 
       int cap = compBuf.capacity();
-      for (int compressed = 0; compressed < compBuf.capacity() && compressed <=chunkSize; compressed += chunkSize) {
+      for (int compressed = 0;
+          compressed < compBuf.capacity() && compressed <= chunkSize;
+          compressed += chunkSize) {
         compressor.compress(compBuf, compressed, Math.min(chunkSize, cap - compressed), out2);
       }
       elapse2 += System.currentTimeMillis() - now2;
-      //origin
+      // origin
       long now1 = System.currentTimeMillis();
       byte[] content = bufferedDocs.toArrayCopy();
-      for (int compressed = 0; compressed < content.length && compressed <=chunkSize; compressed += chunkSize) {
-        compressor.compress(content, compressed, Math.min(chunkSize, content.length - compressed), out);
+      for (int compressed = 0;
+          compressed < content.length && compressed <= chunkSize;
+          compressed += chunkSize) {
+        compressor.compress(
+            content, compressed, Math.min(chunkSize, content.length - compressed), out);
       }
       elapse1 += System.currentTimeMillis() - now1;
 
       assertArrayEquals(outbuf, outbuf2);
     }
 
-    System.out.println("Origin time:" + elapse1 +  " New time:" + elapse2);
-
+    System.out.println(
+        "Capacity:" + bufferedDocs.size() + "Origin time:" + elapse1 + " New time:" + elapse2);
   }
+
   public void testCompressPresetDictCompressionMode() throws IOException {
     Random random = random();
     final int iterations = atLeast(random, 3);
@@ -438,7 +445,8 @@ public class TestCompressingStoredFieldsFormat extends BaseStoredFieldsFormatTes
       assertArrayEquals(outbuf, outbuf2);
     }
     if (VERBOSE) {
-      System.out.println("Origin time:" + elapse1 + " New time:" + elapse2);
+      System.out.println(
+          "Capacity:" + bufferedDocs.size() + "Origin time:" + elapse1 + " New time:" + elapse2);
     }
   }
 

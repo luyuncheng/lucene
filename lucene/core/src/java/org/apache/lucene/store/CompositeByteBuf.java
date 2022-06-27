@@ -111,20 +111,27 @@ public class CompositeByteBuf {
     }
     return this;
   }
-    public ArrayList<Component> rangeOffset(int offset, int length) {
-        int componentId = toComponentIndex(offset);
-        ArrayList<Component> result = new ArrayList<>(1);
+  /**
+   * location bytes from offset to length in which components
+   *
+   * @param offset the offset within the CompositeBytebuf of the first byte to be written
+   * @param length The number of bytes to be written to the given array
+   * @return ArrayList which component contains these bytes
+   */
+  public ArrayList<Component> rangeOffset(int offset, int length) {
+    int componentId = toComponentIndex(offset);
+    ArrayList<Component> result = new ArrayList<>(1);
 
-        while (length > 0 && componentId <= componentCount) {
-            Component c = components[componentId];
-            result.add(c);
-            int localLength = Math.min(length, c.endOffset - offset);
-            offset += localLength;
-            length -= localLength;
-            componentId++;
-        }
-        return result;
+    while (length > 0 && componentId <= componentCount) {
+      Component c = components[componentId];
+      result.add(c);
+      int localLength = Math.min(length, c.endOffset - offset);
+      offset += localLength;
+      length -= localLength;
+      componentId++;
     }
+    return result;
+  }
   /** Return the current number of {@link ByteBuffer}'s that are composed in this instance */
   public int numComponents() {
     return componentCount;
@@ -164,17 +171,21 @@ public class CompositeByteBuf {
     }
 
     public int getOffset() {
-       return this.offset;
+      return this.offset;
     }
+
     public int getEndOffset() {
       return this.endOffset;
     }
+
     public int getAdjustment() {
       return this.adjustment;
     }
+
     public int idx(int index) {
       return index + adjustment;
     }
+
     void reposition(int newOffset) {
       int move = newOffset - offset;
       endOffset += move;

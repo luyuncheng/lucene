@@ -271,13 +271,15 @@ public final class ByteBuffersDataOutput extends DataOutput implements Accountab
     }
     return result;
   }
+
   public ArrayList<ByteBuffer> toWriteableBufferListWithLitteEndian() {
     ArrayList<ByteBuffer> result = new ArrayList<>(Math.max(blocks.size(), 1));
     if (blocks.isEmpty()) {
       result.add(EMPTY);
     } else {
       for (ByteBuffer bb : blocks) {
-        bb = bb.duplicate().flip().order(ByteOrder.LITTLE_ENDIAN);;
+        bb = bb.duplicate().flip().order(ByteOrder.LITTLE_ENDIAN);
+        ;
         result.add(bb);
       }
     }
