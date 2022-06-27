@@ -251,7 +251,7 @@ public final class Lucene90CompressingStoredFieldsWriter extends StoredFieldsWri
     // compress stored fields to fieldsStream.
     if (sliced) {
       // big chunk, slice it
-      ArrayList<ByteBuffer> bufferList = bufferedDocs.toBufferList();
+      ArrayList<ByteBuffer> bufferList = bufferedDocs.toWriteableBufferListWithLitteEndian();
       CompositeByteBuf compBuf = new CompositeByteBuf(bufferList.size());
       for (ByteBuffer bb : bufferList) {
         compBuf.addComponent(bb);
@@ -262,7 +262,7 @@ public final class Lucene90CompressingStoredFieldsWriter extends StoredFieldsWri
             compBuf, compressed, Math.min(chunkSize, capacity - compressed), fieldsStream);
       }
     } else {
-      ArrayList<ByteBuffer> bufferList = bufferedDocs.toBufferList();
+      ArrayList<ByteBuffer> bufferList = bufferedDocs.toWriteableBufferListWithLitteEndian();
       CompositeByteBuf compBuf = new CompositeByteBuf(bufferList.size());
       for (ByteBuffer bb : bufferList) {
         compBuf.addComponent(bb);
