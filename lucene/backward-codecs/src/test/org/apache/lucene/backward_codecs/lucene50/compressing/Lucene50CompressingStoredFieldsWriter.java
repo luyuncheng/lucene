@@ -39,6 +39,7 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.SegmentInfo;
+import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.Directory;
@@ -254,21 +255,18 @@ public final class Lucene50CompressingStoredFieldsWriter extends StoredFieldsWri
     writeHeader(docBase, numBufferedDocs, numStoredFields, lengths, sliced, force);
 
     // compress stored fields to fieldsStream.
-    //
-    // TODO: do we need to slice it since we already have the slices in the buffer? Perhaps
-    // we should use max-block-bits restriction on the buffer itself, then we won't have to check it
-    // here.
-    byte[] content = bufferedDocs.toArrayCopy();
-    bufferedDocs.reset();
-
     if (sliced) {
       // big chunk, slice it
-      for (int compressed = 0; compressed < content.length; compressed += chunkSize) {
+      ByteBuffersDataInput compBuf = bufferedDocs.toDataInput();
+
+      final int capacity = (int) compBuf.size();
+      for (int compressed = 0; compressed < capacity; compressed += chunkSize) {
         compressor.compress(
-            content, compressed, Math.min(chunkSize, content.length - compressed), fieldsStream);
+            compBuf, compressed, Math.min(chunkSize, capacity - compressed), fieldsStream);
       }
     } else {
-      compressor.compress(content, 0, content.length, fieldsStream);
+      ByteBuffersDataInput compBuf = bufferedDocs.toDataInput();
+      compressor.compress(compBuf, 0, (int) compBuf.size(), fieldsStream);
     }
 
     // reset

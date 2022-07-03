@@ -361,6 +361,10 @@ public final class ByteBuffersDataInput extends DataInput
     }
   }
 
+  public ByteBuffer[] getBlocks() {
+    return blocks;
+  }
+
   @Override
   public void skipBytes(long numBytes) throws IOException {
     if (numBytes < 0) {

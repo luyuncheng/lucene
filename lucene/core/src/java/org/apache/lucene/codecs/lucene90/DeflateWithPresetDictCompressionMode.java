@@ -18,8 +18,6 @@ package org.apache.lucene.codecs.lucene90;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.util.ArrayList;
 import java.util.zip.DataFormatException;
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
@@ -27,7 +25,7 @@ import org.apache.lucene.codecs.compressing.CompressionMode;
 import org.apache.lucene.codecs.compressing.Compressor;
 import org.apache.lucene.codecs.compressing.Decompressor;
 import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.store.CompositeByteBuf;
+import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.ArrayUtil;
@@ -235,7 +233,6 @@ public final class DeflateWithPresetDictCompressionMode extends CompressionMode 
       out.writeBytes(compressed, totalCount);
     }
 
-    @Override
     public void compress(byte[] bytes, int off, int len, DataOutput out) throws IOException {
       final int dictLength = len / (NUM_SUB_BLOCKS * DICT_SIZE_FACTOR);
       final int blockLength = (len - dictLength + NUM_SUB_BLOCKS - 1) / NUM_SUB_BLOCKS;
@@ -256,7 +253,7 @@ public final class DeflateWithPresetDictCompressionMode extends CompressionMode 
     }
 
     @Override
-    public void compress(CompositeByteBuf compositeByteBuf, int off, int len, DataOutput out)
+    public void compress(ByteBuffersDataInput buffersInput, int off, int len, DataOutput out)
         throws IOException {
       final int dictLength = len / (NUM_SUB_BLOCKS * DICT_SIZE_FACTOR);
       final int blockLength = (len - dictLength + NUM_SUB_BLOCKS - 1) / NUM_SUB_BLOCKS;
@@ -267,7 +264,7 @@ public final class DeflateWithPresetDictCompressionMode extends CompressionMode 
       // Compress the dictionary first
       compressor.reset();
       bufferDict = ArrayUtil.growNoCopy(bufferDict, dictLength);
-      compositeByteBuf.copyBytes(off, bufferDict, 0, dictLength);
+      buffersInput.readBytes(bufferDict, 0, dictLength);
       doCompress(bufferDict, 0, dictLength, out);
 
       // And then sub blocks
@@ -277,14 +274,16 @@ public final class DeflateWithPresetDictCompressionMode extends CompressionMode 
         int l = Math.min(blockLength, off + len - start);
         // if [start,start + len] stay in one ByteBuffer, we can ignore memory copy
         // otherwise need to copy bytes into on continuous byte array
-        ArrayList<CompositeByteBuf.Component> arrayList = compositeByteBuf.rangeOffset(start, l);
-        if (arrayList.size() == 1) {
-          CompositeByteBuf.Component c = arrayList.get(0);
-          ByteBuffer bb = c.getBuf().slice(c.idx(start), l).order(ByteOrder.LITTLE_ENDIAN);
+        ByteBuffersDataInput dbdi = buffersInput.slice(start, l);
+        ByteBuffer[] bbs = dbdi.getBlocks();
+
+        if (bbs.length == 1) {
+          ByteBuffer bb = bbs[0];
           doCompress(bb, l, out);
+          buffersInput.skipBytes(l);
         } else {
           bufferBlock = ArrayUtil.growNoCopy(bufferBlock, l);
-          compositeByteBuf.copyBytes(start, bufferBlock, 0, l);
+          buffersInput.readBytes(bufferBlock, 0, l);
           doCompress(bufferBlock, 0, l, out);
         }
       }

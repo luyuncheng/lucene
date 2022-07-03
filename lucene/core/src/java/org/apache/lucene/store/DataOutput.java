@@ -62,6 +62,12 @@ public abstract class DataOutput {
    */
   public abstract void writeBytes(byte[] b, int offset, int length) throws IOException;
 
+  public void writeBytes(ByteBuffersDataInput buffersInput, int offset, int length)
+      throws IOException {
+    buffersInput.seek(offset);
+    copyBytes(buffersInput, length);
+  }
+
   /**
    * Writes an int as four bytes (LE byte order).
    *

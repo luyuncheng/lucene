@@ -19,7 +19,6 @@ package org.apache.lucene.codecs.lucene90.compressing;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.lucene.codecs.CodecUtil;
@@ -36,8 +35,8 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentInfo;
+import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
-import org.apache.lucene.store.CompositeByteBuf;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -251,23 +250,16 @@ public final class Lucene90CompressingStoredFieldsWriter extends StoredFieldsWri
     // compress stored fields to fieldsStream.
     if (sliced) {
       // big chunk, slice it
-      ArrayList<ByteBuffer> bufferList = bufferedDocs.toWriteableBufferListWithLitteEndian();
-      CompositeByteBuf compBuf = new CompositeByteBuf(bufferList.size());
-      for (ByteBuffer bb : bufferList) {
-        compBuf.addComponent(bb);
-      }
-      final int capacity = compBuf.capacity();
+      ByteBuffersDataInput compBuf = bufferedDocs.toDataInput();
+
+      final int capacity = (int) compBuf.size();
       for (int compressed = 0; compressed < capacity; compressed += chunkSize) {
         compressor.compress(
             compBuf, compressed, Math.min(chunkSize, capacity - compressed), fieldsStream);
       }
     } else {
-      ArrayList<ByteBuffer> bufferList = bufferedDocs.toWriteableBufferListWithLitteEndian();
-      CompositeByteBuf compBuf = new CompositeByteBuf(bufferList.size());
-      for (ByteBuffer bb : bufferList) {
-        compBuf.addComponent(bb);
-      }
-      compressor.compress(compBuf, 0, compBuf.capacity(), fieldsStream);
+      ByteBuffersDataInput compBuf = bufferedDocs.toDataInput();
+      compressor.compress(compBuf, 0, (int) compBuf.size(), fieldsStream);
     }
 
     // reset
