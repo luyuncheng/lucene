@@ -35,7 +35,4 @@ public abstract class Compressor implements Closeable {
   public abstract void compress(ByteBuffersDataInput buffersInput, int off, int len, DataOutput out)
       throws IOException;
 
-  //  public void compress(byte[] bytes, int off, int len, DataOutput out) throws IOException {
-  //    throw new UnsupportedOperationException("Not support compress with byte[]");
-  //  }
 }

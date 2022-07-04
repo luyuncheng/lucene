@@ -82,13 +82,7 @@ public class DummyCompressingCodec extends CompressingCodec {
           out.writeBytes(buffersInput, off, len);
         }
 
-        //        @Override
-        //        public void compress(byte[] bytes, int off, int len, DataOutput out) throws
-        // IOException {
-        //          out.writeBytes(bytes, off, len);
-        //        }
-
-        @Override
+		@Override
         public void close() throws IOException {}
       };
 
