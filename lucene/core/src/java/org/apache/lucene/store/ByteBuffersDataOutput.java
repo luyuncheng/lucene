@@ -231,7 +231,8 @@ public final class ByteBuffersDataOutput extends DataOutput implements Accountab
 
   public void copyBytes(ByteArrayDataInput input, long numBytes) throws IOException {
     assert numBytes >= 0;
-    ByteBuffer bb = input.toByteBuffer().limit((int) numBytes);
+    int l = Math.min(input.length() - input.getPosition(), (int) numBytes);
+    ByteBuffer bb = input.toByteBuffer(l);
     writeBytes(bb);
   }
 

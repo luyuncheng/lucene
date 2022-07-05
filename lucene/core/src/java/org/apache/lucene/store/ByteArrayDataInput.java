@@ -174,7 +174,7 @@ public final class ByteArrayDataInput extends DataInput {
     pos += len;
   }
 
-  public ByteBuffer toByteBuffer() {
-    return ByteBuffer.wrap(bytes).position(pos).limit(limit).asReadOnlyBuffer();
+  public ByteBuffer toByteBuffer(int length) {
+    return ByteBuffer.wrap(bytes, pos, length).asReadOnlyBuffer();
   }
 }
