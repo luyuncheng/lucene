@@ -374,6 +374,34 @@ public final class ByteBuffersDataInput extends DataInput
     seek(skipTo);
   }
 
+  /**
+   * From position with length can slice into one Bytebuffer
+   * @param position abs position
+   * @param length from position to length
+   * @return if in ByteBuffer return it, else return null
+   */
+  public ByteBuffer sliceOne(long position, long length) {
+    if (offset < 0 || length < 0 || offset + length > this.size) {
+      throw new IllegalArgumentException(
+              String.format(
+                      Locale.ROOT,
+                      "slice(offset=%s, length=%s) is out of bounds: %s",
+                      offset,
+                      length,
+                      this));
+    }
+    long absPos = position + this.offset;
+    int blockIndex = blockIndex(absPos);
+    int blockOffset = blockOffset(absPos);
+    ByteBuffer block = blocks[blockIndex].duplicate();
+    block.position(blockOffset).order(ByteOrder.LITTLE_ENDIAN);
+    if (block.remaining() >= length) {
+      return block.slice(blockOffset, (int)length);
+    } else {
+      return null;
+    }
+  }
+
   public ByteBuffersDataInput slice(long offset, long length) {
     if (offset < 0 || length < 0 || offset + length > this.size) {
       throw new IllegalArgumentException(

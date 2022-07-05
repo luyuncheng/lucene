@@ -19,6 +19,7 @@ package org.apache.lucene.store;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 
+import java.nio.ByteBuffer;
 /**
  * DataInput backed by a byte array. <b>WARNING:</b> This class omits all low-level checks.
  *
@@ -171,5 +172,8 @@ public final class ByteArrayDataInput extends DataInput {
   public void readBytes(byte[] b, int offset, int len) {
     System.arraycopy(bytes, pos, b, offset, len);
     pos += len;
+  }
+  public ByteBuffer toByteBuffer() {
+    return ByteBuffer.wrap(bytes).position(pos).limit(limit).asReadOnlyBuffer();
   }
 }

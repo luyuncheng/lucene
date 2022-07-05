@@ -34,5 +34,4 @@ public abstract class Compressor implements Closeable {
    */
   public abstract void compress(ByteBuffersDataInput buffersInput, int off, int len, DataOutput out)
       throws IOException;
-
 }

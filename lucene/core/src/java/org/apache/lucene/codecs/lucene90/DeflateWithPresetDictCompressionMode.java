@@ -274,11 +274,9 @@ public final class DeflateWithPresetDictCompressionMode extends CompressionMode 
         int l = Math.min(blockLength, off + len - start);
         // if [start,start + len] stay in one ByteBuffer, we can ignore memory copy
         // otherwise need to copy bytes into on continuous byte array
-        ByteBuffersDataInput dbdi = buffersInput.slice(start, l);
-        ByteBuffer[] bbs = dbdi.getBlocks();
+        ByteBuffer bb = buffersInput.sliceOne(start, l);
 
-        if (bbs.length == 1) {
-          ByteBuffer bb = bbs[0];
+        if (bb != null) {
           doCompress(bb, l, out);
           buffersInput.skipBytes(l);
         } else {

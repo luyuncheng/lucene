@@ -35,6 +35,7 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentInfo;
+import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.DataOutput;
@@ -517,7 +518,11 @@ public final class Lucene90CompressingStoredFieldsWriter extends StoredFieldsWri
     assert reader.getVersion() == VERSION_CURRENT;
     SerializedDocument doc = reader.document(docID);
     startDocument();
-    bufferedDocs.copyBytes(doc.in, doc.length);
+    if (doc.in instanceof ByteArrayDataInput) {
+      bufferedDocs.copyBytes((ByteArrayDataInput) doc.in, doc.length);
+    } else {
+      bufferedDocs.copyBytes(doc.in, doc.length);
+    }
     numStoredFieldsInDoc = doc.numStoredFields;
     finishDocument();
   }
