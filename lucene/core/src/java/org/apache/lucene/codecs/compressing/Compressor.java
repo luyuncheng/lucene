@@ -18,7 +18,7 @@ package org.apache.lucene.codecs.compressing;
 
 import java.io.Closeable;
 import java.io.IOException;
-import org.apache.lucene.store.CompositeByteBuf;
+import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.DataOutput;
 
 /** A data compressor. */
@@ -32,12 +32,6 @@ public abstract class Compressor implements Closeable {
    * necessary information so that a {@link Decompressor} will know when to stop decompressing bytes
    * from the stream.
    */
-  public abstract void compress(byte[] bytes, int off, int len, DataOutput out) throws IOException;
-
-  public void compress(CompositeByteBuf compositeByteBuf, int off, int len, DataOutput out)
-      throws IOException {
-    byte[] arr = new byte[len];
-    compositeByteBuf.copyBytes(off, arr, 0, len);
-    compress(arr, 0, len, out);
-  }
+  public abstract void compress(ByteBuffersDataInput buffersInput, int off, int len, DataOutput out)
+      throws IOException;
 }

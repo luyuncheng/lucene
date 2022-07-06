@@ -229,6 +229,13 @@ public final class ByteBuffersDataOutput extends DataOutput implements Accountab
     }
   }
 
+  public void copyBytes(ByteArrayDataInput input, long numBytes) throws IOException {
+    assert numBytes >= 0;
+    int l = Math.min(input.length() - input.getPosition(), (int) numBytes);
+    ByteBuffer bb = input.toByteBuffer(l);
+    writeBytes(bb);
+  }
+
   /**
    * Return a list of read-only view of {@link ByteBuffer} blocks over the current content written
    * to the output.
@@ -272,19 +279,6 @@ public final class ByteBuffersDataOutput extends DataOutput implements Accountab
     return result;
   }
 
-  public ArrayList<ByteBuffer> toWriteableBufferListWithLitteEndian() {
-    ArrayList<ByteBuffer> result = new ArrayList<>(Math.max(blocks.size(), 1));
-    if (blocks.isEmpty()) {
-      result.add(EMPTY);
-    } else {
-      for (ByteBuffer bb : blocks) {
-        bb = bb.duplicate().flip().order(ByteOrder.LITTLE_ENDIAN);
-        ;
-        result.add(bb);
-      }
-    }
-    return result;
-  }
   /**
    * Return a {@link ByteBuffersDataInput} for the set of current buffers ({@link #toBufferList()}).
    */

@@ -21,8 +21,8 @@ import org.apache.lucene.codecs.compressing.CompressionMode;
 import org.apache.lucene.codecs.compressing.Compressor;
 import org.apache.lucene.codecs.compressing.Decompressor;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
-import org.apache.lucene.store.CompositeByteBuf;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.ArrayUtil;
@@ -167,7 +167,6 @@ public final class LZ4WithPresetDictCompressionMode extends CompressionMode {
       out.writeVInt(Math.toIntExact(compressed.size() - prevCompressedSize));
     }
 
-    @Override
     public void compress(byte[] bytes, int off, int len, DataOutput out) throws IOException {
       final int dictLength = len / (NUM_SUB_BLOCKS * DICT_SIZE_FACTOR);
       final int blockLength = (len - dictLength + NUM_SUB_BLOCKS - 1) / NUM_SUB_BLOCKS;
@@ -193,7 +192,7 @@ public final class LZ4WithPresetDictCompressionMode extends CompressionMode {
     }
 
     @Override
-    public void compress(CompositeByteBuf compositeByteBuf, int off, int len, DataOutput out)
+    public void compress(ByteBuffersDataInput buffersInput, int off, int len, DataOutput out)
         throws IOException {
       final int dictLength = len / (NUM_SUB_BLOCKS * DICT_SIZE_FACTOR);
       final int blockLength = (len - dictLength + NUM_SUB_BLOCKS - 1) / NUM_SUB_BLOCKS;
@@ -204,13 +203,13 @@ public final class LZ4WithPresetDictCompressionMode extends CompressionMode {
 
       compressed.reset();
       // Compress the dictionary first
-      compositeByteBuf.copyBytes(off, buffer, 0, dictLength);
+      buffersInput.readBytes(buffer, 0, dictLength);
       doCompress(buffer, 0, dictLength, out);
 
       // And then sub blocks
       for (int start = off + dictLength; start < end; start += blockLength) {
         int l = Math.min(blockLength, off + len - start);
-        compositeByteBuf.copyBytes(start, buffer, dictLength, l);
+        buffersInput.readBytes(buffer, dictLength, l);
         doCompress(buffer, dictLength, l, out);
       }
 

@@ -21,7 +21,6 @@ import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -51,8 +50,8 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteArrayDataOutput;
+import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
-import org.apache.lucene.store.CompositeByteBuf;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.codecs.compressing.CompressingCodec;
@@ -371,35 +370,30 @@ public class TestCompressingStoredFieldsFormat extends BaseStoredFieldsFormatTes
       // new
 
       long now2 = System.currentTimeMillis();
-      ArrayList<ByteBuffer> bufferList = bufferedDocs.toWriteableBufferListWithLitteEndian();
-      CompositeByteBuf compBuf = new CompositeByteBuf(bufferList.size());
-      for (ByteBuffer bb : bufferList) {
-        compBuf.addComponent(bb);
-      }
+      ByteBuffersDataInput compBuf = bufferedDocs.toDataInput();
 
-      int cap = compBuf.capacity();
+      int cap = (int) compBuf.size();
       for (int compressed = 0;
-          compressed < compBuf.capacity() && compressed <= chunkSize;
+          compressed < cap && compressed <= chunkSize;
           compressed += chunkSize) {
         compressor.compress(compBuf, compressed, Math.min(chunkSize, cap - compressed), out2);
       }
       elapse2 += System.currentTimeMillis() - now2;
       // origin
-      long now1 = System.currentTimeMillis();
-      byte[] content = bufferedDocs.toArrayCopy();
-      for (int compressed = 0;
-          compressed < content.length && compressed <= chunkSize;
-          compressed += chunkSize) {
-        compressor.compress(
-            content, compressed, Math.min(chunkSize, content.length - compressed), out);
-      }
-      elapse1 += System.currentTimeMillis() - now1;
-
-      assertArrayEquals(outbuf, outbuf2);
+      //      long now1 = System.currentTimeMillis();
+      //      byte[] content = bufferedDocs.toArrayCopy();
+      //      for (int compressed = 0; compressed < content.length && compressed <=chunkSize;
+      // compressed += chunkSize) {
+      //        compressor.compress(content, compressed, Math.min(chunkSize, content.length -
+      // compressed), out);
+      //      }
+      //      elapse1 += System.currentTimeMillis() - now1;
+      //
+      //      assertArrayEquals(outbuf, outbuf2);
     }
 
     System.out.println(
-        "Capacity:" + bufferedDocs.size() + "Origin time:" + elapse1 + " New time:" + elapse2);
+        "Capacity:" + bufferedDocs.size() + " Origin time:" + elapse1 + " New time:" + elapse2);
   }
 
   public void testCompressPresetDictCompressionMode() throws IOException {
@@ -422,32 +416,70 @@ public class TestCompressingStoredFieldsFormat extends BaseStoredFieldsFormatTes
       ByteArrayDataOutput out2 = new ByteArrayDataOutput(outbuf2);
       // new
       long now2 = System.currentTimeMillis();
-      ArrayList<ByteBuffer> bufferList = bufferedDocs.toWriteableBufferListWithLitteEndian();
-      CompositeByteBuf compBuf = new CompositeByteBuf(bufferList.size());
-      for (ByteBuffer bb : bufferList) {
-        compBuf.addComponent(bb);
-      }
 
-      int cap = compBuf.capacity();
-      for (int compressed = 0; compressed < compBuf.capacity(); compressed += chunkSize) {
+      ByteBuffersDataInput compBuf = bufferedDocs.toDataInput();
+
+      int cap = (int) compBuf.size();
+      for (int compressed = 0; compressed < cap; compressed += chunkSize) {
         compressor.compress(compBuf, compressed, Math.min(chunkSize, cap - compressed), out2);
       }
       elapse2 += System.currentTimeMillis() - now2;
       // origin
-      long now1 = System.currentTimeMillis();
-      byte[] content = bufferedDocs.toArrayCopy();
-      for (int compressed = 0; compressed < content.length; compressed += chunkSize) {
-        compressor.compress(
-            content, compressed, Math.min(chunkSize, content.length - compressed), out);
-      }
-      elapse1 += System.currentTimeMillis() - now1;
+      //      long now1 = System.currentTimeMillis();
+      //      byte[] content = bufferedDocs.toArrayCopy();
+      //      for (int compressed = 0; compressed < content.length; compressed += chunkSize) {
+      //        compressor.compress(content, compressed, Math.min(chunkSize, content.length -
+      // compressed), out);
+      //      }
+      //      elapse1 += System.currentTimeMillis() - now1;
+      //
+      //      assertArrayEquals(outbuf, outbuf2);
+    }
 
-      assertArrayEquals(outbuf, outbuf2);
+    System.out.println("Origin time:" + elapse1 + " New time:" + elapse2);
+  }
+
+  public void testCompressLZ4FastCompressor() throws IOException {
+    Random random = random();
+    final int iterations = atLeast(random, 3);
+    ByteBuffersDataOutput bufferedDocs = new ByteBuffersDataOutput();
+    int chunkSize = 4 * 1024;
+    CompressionMode compressionMode = CompressionMode.FAST;
+    Compressor compressor = compressionMode.newCompressor();
+    for (int i = 0; i < iterations; ++i) {
+      final byte[] decompressed = randomArray(random);
+      bufferedDocs.writeBytes(decompressed, decompressed.length);
     }
-    if (VERBOSE) {
-      System.out.println(
-          "Capacity:" + bufferedDocs.size() + "Origin time:" + elapse1 + " New time:" + elapse2);
+    long elapse1 = 0, elapse2 = 0;
+    for (int i = 0; i < 10; i++) {
+      byte[] outbuf = new byte[(int) bufferedDocs.size() * 2]; // should be enough
+      ByteArrayDataOutput out = new ByteArrayDataOutput(outbuf);
+
+      byte[] outbuf2 = new byte[(int) bufferedDocs.size() * 2]; // should be enough
+      ByteArrayDataOutput out2 = new ByteArrayDataOutput(outbuf2);
+      // new
+      long now2 = System.currentTimeMillis();
+
+      ByteBuffersDataInput compBuf = bufferedDocs.toDataInput();
+
+      int cap = (int) compBuf.size();
+      for (int compressed = 0; compressed < cap; compressed += chunkSize) {
+        compressor.compress(compBuf, compressed, Math.min(chunkSize, cap - compressed), out2);
+      }
+      elapse2 += System.currentTimeMillis() - now2;
+      // origin
+      //      long now1 = System.currentTimeMillis();
+      //      byte[] content = bufferedDocs.toArrayCopy();
+      //      for (int compressed = 0; compressed < content.length; compressed += chunkSize) {
+      //        compressor.compress(content, compressed, Math.min(chunkSize, content.length -
+      // compressed), out);
+      //      }
+      //      elapse1 += System.currentTimeMillis() - now1;
+      //
+      //      assertArrayEquals(outbuf, outbuf2);
     }
+
+    System.out.println("Origin time:" + elapse1 + " New time:" + elapse2);
   }
 
   public void testSortedSetVariableLengthBigStoredFields() throws Exception {

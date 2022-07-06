@@ -41,6 +41,7 @@ import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentInfo;
+import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.Directory;
@@ -425,8 +426,8 @@ public final class Lucene90CompressingTermVectorsWriter extends TermVectorsWrite
       //
       // TODO: We could compress in the slices we already have in the buffer (min/max slice
       // can be set on the buffer itself).
-      byte[] content = termSuffixes.toArrayCopy();
-      compressor.compress(content, 0, content.length, vectorsStream);
+      ByteBuffersDataInput content = termSuffixes.toDataInput();
+      compressor.compress(content, 0, (int) content.size(), vectorsStream);
     }
 
     // reset

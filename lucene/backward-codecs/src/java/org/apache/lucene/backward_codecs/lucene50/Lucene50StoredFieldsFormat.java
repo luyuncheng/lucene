@@ -31,6 +31,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.Directory;
@@ -194,7 +195,11 @@ public class Lucene50StoredFieldsFormat extends StoredFieldsFormat {
     }
 
     @Override
-    public void compress(byte[] bytes, int off, int len, DataOutput out) throws IOException {
+    public void compress(ByteBuffersDataInput buffersInput, int off, int len, DataOutput out)
+        throws IOException {
+      byte[] bytes = new byte[len];
+      buffersInput.seek(off);
+      buffersInput.readBytes(bytes, 0, len);
       LZ4.compress(bytes, off, len, EndiannessReverserUtil.wrapDataOutput(out), ht);
     }
 
