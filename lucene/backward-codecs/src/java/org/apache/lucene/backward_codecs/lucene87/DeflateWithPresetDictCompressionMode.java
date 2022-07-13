@@ -17,6 +17,7 @@
 package org.apache.lucene.backward_codecs.lucene87;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.zip.DataFormatException;
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
@@ -24,6 +25,7 @@ import org.apache.lucene.backward_codecs.compressing.CompressionMode;
 import org.apache.lucene.backward_codecs.compressing.Compressor;
 import org.apache.lucene.backward_codecs.compressing.Decompressor;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.ArrayUtil;
@@ -163,6 +165,8 @@ public final class DeflateWithPresetDictCompressionMode extends CompressionMode 
     final Deflater compressor;
     final BugfixDeflater_JDK8252739 deflaterBugfix;
     byte[] compressed;
+    byte[] bufferDict;
+    byte[] bufferBlock;
     boolean closed;
 
     DeflateWithPresetDictCompressor(int level) {
@@ -199,8 +203,37 @@ public final class DeflateWithPresetDictCompressionMode extends CompressionMode 
       out.writeBytes(compressed, totalCount);
     }
 
+    private void doCompress(ByteBuffer bytes, int len, DataOutput out) throws IOException {
+      if (len == 0) {
+        out.writeVInt(0);
+        return;
+      }
+      compressor.setInput(bytes);
+      compressor.finish();
+      if (compressor.needsInput()) {
+        throw new IllegalStateException();
+      }
+
+      int totalCount = 0;
+      for (; ; ) {
+        final int count =
+            compressor.deflate(compressed, totalCount, compressed.length - totalCount);
+        totalCount += count;
+        assert totalCount <= compressed.length;
+        if (compressor.finished()) {
+          break;
+        } else {
+          compressed = ArrayUtil.grow(compressed);
+        }
+      }
+
+      out.writeVInt(totalCount);
+      out.writeBytes(compressed, totalCount);
+    }
+
     @Override
-    public void compress(byte[] bytes, int off, int len, DataOutput out) throws IOException {
+    public void compress(ByteBuffersDataInput buffersInput, int off, int len, DataOutput out)
+        throws IOException {
       final int dictLength = len / (NUM_SUB_BLOCKS * DICT_SIZE_FACTOR);
       final int blockLength = (len - dictLength + NUM_SUB_BLOCKS - 1) / NUM_SUB_BLOCKS;
       out.writeVInt(dictLength);
@@ -209,13 +242,29 @@ public final class DeflateWithPresetDictCompressionMode extends CompressionMode 
 
       // Compress the dictionary first
       compressor.reset();
-      doCompress(bytes, off, dictLength, out);
+      bufferDict = ArrayUtil.growNoCopy(bufferDict, dictLength);
+      buffersInput.readBytes(bufferDict, 0, dictLength);
+      doCompress(bufferDict, 0, dictLength, out);
 
       // And then sub blocks
       for (int start = off + dictLength; start < end; start += blockLength) {
         compressor.reset();
-        deflaterBugfix.setDictionary(bytes, off, dictLength);
-        doCompress(bytes, start, Math.min(blockLength, off + len - start), out);
+        deflaterBugfix.setDictionary(bufferDict, 0, dictLength);
+        int l = Math.min(blockLength, off + len - start);
+        // if [start,start + len] stay in one ByteBuffer, we can ignore memory copy
+        // otherwise need to copy bytes into on continuous byte array
+        ByteBuffersDataInput dbdi = buffersInput.slice(start, l);
+        ByteBuffer[] bbs = dbdi.getBlocks();
+
+        if (bbs.length == 1) {
+          ByteBuffer bb = bbs[0];
+          doCompress(bb, l, out);
+          buffersInput.skipBytes(l);
+        } else {
+          bufferBlock = ArrayUtil.growNoCopy(bufferBlock, l);
+          buffersInput.readBytes(bufferBlock, 0, l);
+          doCompress(bufferBlock, 0, l, out);
+        }
       }
     }
 

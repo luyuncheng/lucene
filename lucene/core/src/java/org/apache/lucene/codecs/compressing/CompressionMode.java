@@ -164,6 +164,15 @@ public abstract class CompressionMode {
     }
 
     @Override
+    public void compress(ByteBuffersDataInput buffersInput, int off, int len, DataOutput out)
+        throws IOException {
+      byte[] bytes = new byte[len];
+      buffersInput.seek(off);
+      buffersInput.readBytes(bytes, 0, len);
+      LZ4.compress(bytes, 0, len, out, ht);
+    }
+
+    @Override
     public void close() throws IOException {
       // no-op
     }
