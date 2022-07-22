@@ -18,6 +18,7 @@ package org.apache.lucene.store;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Set;
 
@@ -95,6 +96,12 @@ public final class ByteBuffersIndexInput extends IndexInput implements RandomAcc
   public void readBytes(byte[] b, int offset, int len, boolean useBuffer) throws IOException {
     ensureOpen();
     in.readBytes(b, offset, len, useBuffer);
+  }
+
+  @Override
+  public ByteBuffer readNBytes(int len) throws IOException {
+    ensureOpen();
+    return in.readNBytes(len);
   }
 
   @Override

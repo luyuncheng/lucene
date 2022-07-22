@@ -19,6 +19,9 @@ package org.apache.lucene.store;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
+import java.nio.channels.WritableByteChannel;
 import java.util.zip.CRC32;
 import java.util.zip.CheckedOutputStream;
 import org.apache.lucene.util.BitUtil;
@@ -57,6 +60,13 @@ public class OutputStreamIndexOutput extends IndexOutput {
   @Override
   public final void writeBytes(byte[] b, int offset, int length) throws IOException {
     os.write(b, offset, length);
+    bytesWritten += length;
+  }
+
+  public final void writeBytes(ByteBuffer bb) throws IOException {
+    int length = bb.remaining();
+    WritableByteChannel wbc = Channels.newChannel(os);
+    wbc.write(bb);
     bytesWritten += length;
   }
 

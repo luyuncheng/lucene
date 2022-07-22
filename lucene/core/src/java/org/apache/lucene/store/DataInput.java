@@ -17,6 +17,7 @@
 package org.apache.lucene.store;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
@@ -70,6 +71,13 @@ public abstract class DataInput implements Cloneable {
   public void readBytes(byte[] b, int offset, int len, boolean useBuffer) throws IOException {
     // Default to ignoring useBuffer entirely
     readBytes(b, offset, len);
+  }
+
+  public ByteBuffer readNBytes(int len) throws IOException {
+    byte[] bytes = new byte[len];
+    readBytes(bytes, 0, len);
+    ByteBuffer bb = ByteBuffer.wrap(bytes);
+    return bb;
   }
 
   /**

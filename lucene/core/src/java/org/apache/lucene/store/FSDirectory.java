@@ -19,6 +19,7 @@ package org.apache.lucene.store;
 import java.io.FileNotFoundException;
 import java.io.FilterOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException; // javadoc @link
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileAlreadyExistsException;
@@ -91,7 +92,7 @@ import org.apache.lucene.util.IOUtils;
  * @see Directory
  */
 public abstract class FSDirectory extends BaseDirectory {
-
+  private static int CHUNK_SIZE = 16384;
   protected final Path directory; // The underlying filesystem directory
 
   /**
@@ -379,7 +380,6 @@ public abstract class FSDirectory extends BaseDirectory {
      * The maximum chunk size is 8192 bytes, because file channel mallocs a native buffer outside of
      * stack if the write buffer size is larger.
      */
-    static final int CHUNK_SIZE = 8192;
 
     public FSIndexOutput(String name) throws IOException {
       this(name, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
@@ -402,6 +402,17 @@ public abstract class FSDirectory extends BaseDirectory {
             }
           },
           CHUNK_SIZE);
+    }
+
+    @Override
+    public void copyBytes(DataInput input, long numBytes) throws IOException {
+      int len = (int)numBytes;
+      while (len > 0) {
+        int l = Math.min(len, CHUNK_SIZE);
+        ByteBuffer bb = input.readNBytes(l);
+        writeBytes(bb);
+        len -= l;
+      }
     }
   }
 

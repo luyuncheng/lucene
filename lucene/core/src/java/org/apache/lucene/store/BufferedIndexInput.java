@@ -127,8 +127,23 @@ public abstract class BufferedIndexInput extends IndexInput implements RandomAcc
         if (after > length()) throw new EOFException("read past EOF: " + this);
         readInternal(ByteBuffer.wrap(b, offset, len));
         bufferStart = after;
-        buffer.limit(0); // trigger refill() on read
+        buffer.limit(0); // trigger r./gr efill() on read
       }
+    }
+  }
+
+  @Override
+  public ByteBuffer readNBytes(int len) throws IOException {
+    //Maybe not buffered
+    final int pos = buffer.position();
+    if (buffer.remaining() >= len) {
+      ByteBuffer bb = buffer.slice(pos, len);
+      buffer.position(pos + len);
+      return bb;
+    } else {
+      byte[] bytes = new byte[len];
+      readBytes(bytes, 0, len, true);
+      return ByteBuffer.wrap(bytes);
     }
   }
 

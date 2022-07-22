@@ -78,6 +78,13 @@ public final class RateLimitedIndexOutput extends IndexOutput {
   }
 
   @Override
+  public void copyBytes(DataInput input, long numBytes) throws IOException {
+    bytesSinceLastPause += numBytes;
+    checkRate();
+    delegate.copyBytes(input, numBytes);
+  }
+
+  @Override
   public void writeInt(int i) throws IOException {
     bytesSinceLastPause += Integer.BYTES;
     checkRate();

@@ -17,6 +17,7 @@
 package org.apache.lucene.store;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -45,6 +46,14 @@ public class BufferedChecksumIndexInput extends ChecksumIndexInput {
   public void readBytes(byte[] b, int offset, int len) throws IOException {
     main.readBytes(b, offset, len);
     digest.update(b, offset, len);
+  }
+
+  @Override
+  public ByteBuffer readNBytes(int len) throws IOException {
+    ByteBuffer bb = main.readNBytes(len);
+//    digest.update(bb.duplicate());
+    digest.update(bb.array(), Math.addExact(bb.arrayOffset(), bb.position()), len);
+    return bb;
   }
 
   @Override

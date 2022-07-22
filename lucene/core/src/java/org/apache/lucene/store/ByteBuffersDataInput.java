@@ -178,6 +178,30 @@ public final class ByteBuffersDataInput extends DataInput
     }
   }
 
+  public ByteBuffer readNBytes(int length) throws EOFException {
+    final long pos = this.pos;
+    if (length < 0 || (pos - offset + length) > this.size) {
+      throw new EOFException(
+              String.format(
+                      Locale.ROOT, "read(pos=%s, length=%s) is out of bounds: %s", pos, length, this));
+    }
+
+    final int blockIndex = blockIndex(pos);
+    final int blockOffset = blockOffset(pos);
+    ByteBuffer block = blocks[blockIndex].duplicate();
+    block.position(blockOffset);
+    // if [pos, pos + len] stay in one ByteBuffer, we can ignore memory copy,
+    // otherwise need to copy bytes into a new ByteBuffer
+    if (block.remaining() >= length) {
+      this.pos += length;
+      return block.slice(blockOffset, length);
+    } else {
+      ByteBuffer copyBuffer = ByteBuffer.allocate(length);
+      readBytes(copyBuffer, length);
+      return copyBuffer.rewind().order(ByteOrder.LITTLE_ENDIAN);
+    }
+  }
+
   @Override
   public int readInt() throws IOException {
     int blockOffset = blockOffset(pos);
