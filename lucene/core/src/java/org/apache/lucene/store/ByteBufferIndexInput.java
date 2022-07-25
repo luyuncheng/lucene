@@ -141,6 +141,22 @@ public abstract class ByteBufferIndexInput extends IndexInput implements RandomA
   }
 
   @Override
+  public ByteBuffer readNBytes(int len) throws IOException {
+    int pos = curBuf.position();
+    ByteBuffer bb;
+    if (curBuf.remaining() >= len) {
+      bb = curBuf.slice(pos, len);
+      curBuf.position(pos + len);
+      return bb;
+    } else {
+      byte[] bytes = new byte[len];
+      readBytes(bytes, 0, len);
+      bb = ByteBuffer.wrap(bytes);
+      return bb;
+    }
+  }
+
+  @Override
   public void readLongs(long[] dst, int offset, int length) throws IOException {
     // ByteBuffer#getLong could work but it has some per-long overhead and there
     // is no ByteBuffer#getLongs to read multiple longs at once. So we use the

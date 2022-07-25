@@ -51,8 +51,8 @@ public class BufferedChecksumIndexInput extends ChecksumIndexInput {
   @Override
   public ByteBuffer readNBytes(int len) throws IOException {
     ByteBuffer bb = main.readNBytes(len);
-//    digest.update(bb.duplicate());
-    digest.update(bb.array(), Math.addExact(bb.arrayOffset(), bb.position()), len);
+    digest.update(bb.duplicate());
+//    digest.update(bb.array(), Math.addExact(bb.arrayOffset(), bb.position()), len);
     return bb;
   }
 
