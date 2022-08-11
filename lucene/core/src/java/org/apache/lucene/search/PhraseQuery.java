@@ -456,17 +456,29 @@ public class PhraseQuery extends Query {
         states = new TermStates[terms.length];
         TermStatistics[] termStats = new TermStatistics[terms.length];
         int termUpTo = 0;
+
+        assert context != null && context.isTopLevel;
         for (int i = 0; i < terms.length; i++) {
           final Term term = terms[i];
-          states[i] = TermStates.build(context, term, scoreMode.needsScores());
-          if (scoreMode.needsScores()) {
+          final TermStates perReaderTermState = new TermStates(scoreMode.needsScores() ? null : term, context);
+          states[i] = perReaderTermState;
+        }
+
+        if (scoreMode.needsScores()) {
+          for (final LeafReaderContext ctx : context.leaves()) {
+            TermStates.buildOneLeaf(ctx, states, terms);
+          }
+
+          for (int i = 0; i < terms.length; i++) {
             TermStates ts = states[i];
+            Term term = terms[i];
             if (ts.docFreq() > 0) {
               termStats[termUpTo++] =
-                  searcher.termStatistics(term, ts.docFreq(), ts.totalTermFreq());
+                      searcher.termStatistics(term, ts.docFreq(), ts.totalTermFreq());
             }
           }
         }
+
         if (termUpTo > 0) {
           return similarity.scorer(
               boost,

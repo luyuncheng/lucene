@@ -18,6 +18,7 @@ package org.apache.lucene.index;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
 
 /**
  * Maintains a {@link IndexReader} {@link TermState} view over {@link IndexReader} instances
@@ -44,7 +45,7 @@ public final class TermStates {
 
   // public static boolean DEBUG = BlockTreeTermsWriter.DEBUG;
 
-  private TermStates(Term term, IndexReaderContext context) {
+  public TermStates(Term term, IndexReaderContext context) {
     assert context != null && context.isTopLevel;
     topReaderContextIdentity = context.identity;
     docFreq = 0;
@@ -111,6 +112,32 @@ public final class TermStates {
     return perReaderTermState;
   }
 
+  public static void buildOneLeaf(LeafReaderContext ctx,
+                                        TermStates[] states,
+                                        Term[] terms) throws IOException {
+    for (int i = 0; i < terms.length; i++) {
+      Term term = terms[i];
+      TermStates perReaderTermState = states[i];
+      TermsEnum termsEnum = loadTermsEnum(ctx, term);
+      if (termsEnum != null) {
+        TermState termState = termsEnum.termState();
+        perReaderTermState.register(termState, ctx.ord, termsEnum.docFreq(), termsEnum.totalTermFreq());
+      }
+    }
+  }
+
+  public static void buildOneLeaf(LeafReaderContext ctx,
+                                  Map<Term, TermStates> termStates) throws IOException {
+    for (Map.Entry<Term, TermStates> entry : termStates.entrySet()) {
+      Term term = entry.getKey();
+      TermStates perReaderTermState = entry.getValue();
+      TermsEnum termsEnum = loadTermsEnum(ctx, term);
+      if (termsEnum != null) {
+        TermState termState = termsEnum.termState();
+        perReaderTermState.register(termState, ctx.ord, termsEnum.docFreq(), termsEnum.totalTermFreq());
+      }
+    }
+  }
   private static TermsEnum loadTermsEnum(LeafReaderContext ctx, Term term) throws IOException {
     final Terms terms = Terms.getTerms(ctx.reader(), term.field());
     final TermsEnum termsEnum = terms.iterator();

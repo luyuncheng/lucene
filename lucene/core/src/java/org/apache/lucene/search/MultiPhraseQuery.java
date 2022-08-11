@@ -224,18 +224,33 @@ public class MultiPhraseQuery extends Query {
 
         // compute idf
         ArrayList<TermStatistics> allTermStats = new ArrayList<>();
+
+        assert context != null && context.isTopLevel;
         for (final Term[] terms : termArrays) {
           for (Term term : terms) {
             TermStates ts = termStates.get(term);
             if (ts == null) {
-              ts = TermStates.build(context, term, scoreMode.needsScores());
-              termStates.put(term, ts);
-            }
-            if (scoreMode.needsScores() && ts.docFreq() > 0) {
-              allTermStats.add(searcher.termStatistics(term, ts.docFreq(), ts.totalTermFreq()));
+              final TermStates perReaderTermState = new TermStates(scoreMode.needsScores() ? null : term, context);
+              termStates.put(term, perReaderTermState);
             }
           }
         }
+
+        if (scoreMode.needsScores()) {
+          for (final LeafReaderContext ctx : context.leaves()) {
+            TermStates.buildOneLeaf(ctx, termStates);
+          }
+
+          for (final Term[] terms : termArrays) {
+            for (Term term : terms) {
+              TermStates ts = termStates.get(term);
+              if (ts != null && ts.docFreq() > 0) {
+                allTermStats.add(searcher.termStatistics(term, ts.docFreq(), ts.totalTermFreq()));
+              }
+            }
+          }
+        }
+
         if (allTermStats.isEmpty()) {
           return null; // none of the terms were found, we won't use sim at all
         } else {

@@ -33,6 +33,7 @@ public abstract class ChecksumIndexInput extends IndexInput {
    * concurrently on different threads can clobber the contents of a shared buffer,
    * corrupting the checksum. See LUCENE-5583 for additional context.
    */
+  //TODO luyuncheng 如果这个没用是不是可以不用copy，但是需要所有的IndexInput引入readNBytes 接口
   private byte[] skipBuffer;
 
   /**
