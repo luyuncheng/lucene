@@ -136,7 +136,7 @@ public final class LZ4WithPresetDictCompressionMode extends CompressionMode {
         // The dictionary contains some bytes we need, copy its content to the BytesRef
         bytes.bytes = ArrayUtil.grow(bytes.bytes, bytes.length + dictLength);
         System.arraycopy(bytes.bytes, 0, bytes.bytes, bytes.offset, dictLength);
-        bytes.length = bytes.length + dictLength;
+        bytes.length += dictLength;
       }
 
       // Read blocks that intersect with the interval we need
