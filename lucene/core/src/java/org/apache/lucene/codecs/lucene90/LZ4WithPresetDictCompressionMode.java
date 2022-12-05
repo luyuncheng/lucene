@@ -63,11 +63,9 @@ public final class LZ4WithPresetDictCompressionMode extends CompressionMode {
   private static final class LZ4WithPresetDictDecompressor extends Decompressor {
 
     private int[] compressedLengths;
-    private byte[] buffer;
 
     LZ4WithPresetDictDecompressor() {
       compressedLengths = new int[0];
-      buffer = new byte[0];
     }
 
     private int readCompressedLengths(
@@ -83,6 +81,20 @@ public final class LZ4WithPresetDictCompressionMode extends CompressionMode {
       return i;
     }
 
+    /**
+     * Decompress bytes that were stored between offsets <code>offset</code> and <code>offset+length
+     * </code> in the original stream from the compressed stream <code>in</code> to <code>bytes
+     * </code> . After returning, the length of <code>bytes</code> (<code>bytes.length</code>) must
+     * be equal to <code>length</code>. Implementations of this method are free to resize <code>
+     * bytes</code> depending on their needs. Note: First dictLength + blockLength bytes in
+     * bytes.bytes are decompressed buffer
+     *
+     * @param in the input that stores the compressed stream
+     * @param originalLength the length of the original data (before compression)
+     * @param offset bytes before this offset do not need to be decompressed
+     * @param length bytes after <code>offset+length</code> do not need to be decompressed
+     * @param bytes a {@link BytesRef} where to store the decompressed data
+     */
     @Override
     public void decompress(DataInput in, int originalLength, int offset, int length, BytesRef bytes)
         throws IOException {
@@ -95,13 +107,14 @@ public final class LZ4WithPresetDictCompressionMode extends CompressionMode {
 
       final int dictLength = in.readVInt();
       final int blockLength = in.readVInt();
-      buffer = new byte[dictLength + blockLength];
+      bytes.bytes = ArrayUtil.growNoCopy(bytes.bytes, dictLength + blockLength);
+      bytes.offset = dictLength + blockLength;
+      bytes.length = dictLength + blockLength;
       compressedLengths = new int[originalLength / blockLength + 1];
       final int numBlocks = readCompressedLengths(in, originalLength, dictLength, blockLength);
 
-      bytes.length = 0;
       // Read the dictionary
-      if (LZ4.decompress(in, dictLength, buffer, 0) != dictLength) {
+      if (LZ4.decompress(in, dictLength, bytes.bytes, 0) != dictLength) {
         throw new CorruptIndexException("Illegal dict length", in);
       }
 
@@ -121,26 +134,25 @@ public final class LZ4WithPresetDictCompressionMode extends CompressionMode {
         in.skipBytes(numBytesToSkip);
       } else {
         // The dictionary contains some bytes we need, copy its content to the BytesRef
-        bytes.bytes = ArrayUtil.growNoCopy(bytes.bytes, dictLength);
-        System.arraycopy(buffer, 0, bytes.bytes, 0, dictLength);
-        bytes.length = dictLength;
+        bytes.bytes = ArrayUtil.grow(bytes.bytes, bytes.length + dictLength);
+        System.arraycopy(bytes.bytes, 0, bytes.bytes, bytes.offset, dictLength);
+        bytes.length = bytes.length + dictLength;
       }
 
       // Read blocks that intersect with the interval we need
       while (offsetInBlock < offset + length) {
         final int bytesToDecompress = Math.min(blockLength, offset + length - offsetInBlock);
-        LZ4.decompress(in, bytesToDecompress, buffer, dictLength);
+        LZ4.decompress(in, bytesToDecompress, bytes.bytes, dictLength);
         bytes.bytes = ArrayUtil.grow(bytes.bytes, bytes.length + bytesToDecompress);
-        System.arraycopy(buffer, dictLength, bytes.bytes, bytes.length, bytesToDecompress);
+        System.arraycopy(bytes.bytes, dictLength, bytes.bytes, bytes.length, bytesToDecompress);
         bytes.length += bytesToDecompress;
         offsetInBlock += blockLength;
       }
 
-      bytes.offset = offsetInBytesRef;
+      bytes.offset += offsetInBytesRef;
       bytes.length = length;
 
       compressedLengths = null;
-      buffer = null;
       assert bytes.isValid();
     }
 
