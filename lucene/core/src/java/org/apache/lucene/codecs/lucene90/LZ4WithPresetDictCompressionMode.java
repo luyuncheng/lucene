@@ -73,6 +73,7 @@ public final class LZ4WithPresetDictCompressionMode extends CompressionMode {
       in.readVInt(); // compressed length of the dictionary, unused
       int totalLength = dictLength;
       int i = 0;
+      compressedLengths = ArrayUtil.growNoCopy(compressedLengths, originalLength / blockLength + 1);
       while (totalLength < originalLength) {
 
         compressedLengths[i++] = in.readVInt();
@@ -110,7 +111,6 @@ public final class LZ4WithPresetDictCompressionMode extends CompressionMode {
       bytes.bytes = ArrayUtil.growNoCopy(bytes.bytes, dictLength + blockLength);
       bytes.offset = dictLength + blockLength;
       bytes.length = dictLength + blockLength;
-      compressedLengths = new int[originalLength / blockLength + 1];
       final int numBlocks = readCompressedLengths(in, originalLength, dictLength, blockLength);
 
       // Read the dictionary
@@ -151,8 +151,6 @@ public final class LZ4WithPresetDictCompressionMode extends CompressionMode {
 
       bytes.offset += offsetInBytesRef;
       bytes.length = length;
-
-      compressedLengths = null;
       assert bytes.isValid();
     }
 
