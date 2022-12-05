@@ -67,8 +67,9 @@ public final class LZ4WithPresetDictCompressionMode extends CompressionMode {
     LZ4WithPresetDictDecompressor() {
       compressedLengths = new int[0];
     }
+
     private int readCompressedLengths(
-            DataInput in, int originalLength, int dictLength, int blockLength) throws IOException {
+        DataInput in, int originalLength, int dictLength, int blockLength) throws IOException {
       in.readVInt(); // compressed length of the dictionary, unused
       int totalLength = dictLength;
       int i = 0;
@@ -80,9 +81,10 @@ public final class LZ4WithPresetDictCompressionMode extends CompressionMode {
       }
       return i;
     }
+
     @Override
     public void decompress(DataInput in, int originalLength, int offset, int length, BytesRef bytes)
-            throws IOException {
+        throws IOException {
       assert offset + length <= originalLength;
       if (length == 0) {
         bytes.length = 0;

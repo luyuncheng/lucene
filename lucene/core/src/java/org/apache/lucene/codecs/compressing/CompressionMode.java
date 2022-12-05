@@ -193,8 +193,7 @@ public abstract class CompressionMode {
 
   private static final class DeflateDecompressor extends Decompressor {
 
-
-    DeflateDecompressor() { }
+    DeflateDecompressor() {}
 
     @Override
     public void decompress(DataInput in, int originalLength, int offset, int length, BytesRef bytes)

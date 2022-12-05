@@ -67,7 +67,7 @@ public final class DeflateWithPresetDictCompressionMode extends CompressionMode 
 
   private static final class DeflateWithPresetDictDecompressor extends Decompressor {
 
-    DeflateWithPresetDictDecompressor() { }
+    DeflateWithPresetDictDecompressor() {}
 
     private void doDecompress(DataInput in, Inflater decompressor, BytesRef bytes)
         throws IOException {
